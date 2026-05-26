@@ -4,8 +4,7 @@
 //
 //  진행 상황 (하드웨어 붙이는 순서대로 더미를 진짜로 교체):
 //    [x] BLE 광고 + notify  (mallangi_ble_test 와 동일)
-//    [x] Velostat ch0 = A0  ← 지금 여기 (1채널만 결선됨)
-//    [ ] Velostat ch1~4 = A1~A4
+//    [x] Velostat ch0~4 = A0~A4  ← 5채널 전부 결선됨
 //    [ ] MPU-6050 (I2C, 0x68)
 //    [ ] ABP2 압력 (I2C)
 //    [ ] 펌프/밸브 PWM (GPIO 13, 12) + MOSFET
@@ -31,11 +30,11 @@
 // Velostat 5채널: 결선 끝난 것만 실제 read, 나머진 0 송신.
 static const int PIN_VELOSTAT[5] = { A0, A1, A2, A3, A4 };
 static const bool VELOSTAT_CONNECTED[5] = {
-  true,   // ch0: 엄지  ← 지금 결선됨
-  false,  // ch1: 검지
-  false,  // ch2: 중지
-  false,  // ch3: 약지
-  false,  // ch4: 소지
+  true,   // ch0: 엄지
+  true,   // ch1: 검지
+  true,   // ch2: 중지
+  true,   // ch3: 약지
+  true,   // ch4: 소지
 };
 
 BLECharacteristic *chStream = nullptr;
