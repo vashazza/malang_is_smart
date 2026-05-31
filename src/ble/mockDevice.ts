@@ -174,7 +174,7 @@ function synthesizePressures(
   const finger = (offset: number, weight: number) => {
     // 손가락별 비중도 매 반복마다 살짝 흔들림 (특정 손가락만 약하게 잡는 등)
     const weightJitter = 1 + (hash01(repIdx * 5.7 + offset) - 0.5) * 0.3; // ±15%
-    const noise = (Math.random() - 0.5) * 120;
+    const noise = (Math.random() - 0.5) * 180;
     return Math.max(
       0,
       Math.min(
@@ -190,11 +190,11 @@ function synthesizePressures(
   };
 
   if (mode === SessionMode.PINCH) {
-    // 핀치: 엄지(p1)+검지(p2)만 활성, 나머지는 약함
-    return [finger(0, 1.0), finger(1, 0.9), finger(2, 0.15), finger(3, 0.1), finger(4, 0.08)];
+    // 핀치: 엄지(p1)+검지(p2)만 활성, 나머지는 약함 (소지 거의 0)
+    return [finger(0, 1.0), finger(1, 0.9), finger(2, 0.15), finger(3, 0.08), finger(4, 0.04)];
   }
-  // GRIP, RHYTHM: 다섯 손가락 모두 활성, 검지/중지가 가장 강
-  return [finger(0, 0.7), finger(1, 1.0), finger(2, 0.95), finger(3, 0.75), finger(4, 0.55)];
+  // GRIP, RHYTHM: 다섯 손가락 모두 활성, 검지/중지가 가장 강, 소지는 확연히 약함
+  return [finger(0, 0.7), finger(1, 1.0), finger(2, 0.95), finger(3, 0.6), finger(4, 0.3)];
 }
 
 // 결정론적 의사난수: 같은 입력엔 같은 출력 (반복 내 안정, 반복 간 다양).
