@@ -141,7 +141,9 @@ export class MockMallangiDevice implements MallangiTransport {
   }
 }
 
-// 사용자가 1.5초 주기로 쥐었다 폈다 하는 듯한 파형 (잡음 포함)
+// 사용자가 ~1.5초 주기로 쥐었다 폈다 하는 듯한 파형 (잡음 포함).
+// 사람 손은 매번 정확히 같지 않으므로 매 반복마다 세기·타이밍·손가락 비중을
+// 자연스럽게 흔들어 데모가 "기계적"으로 보이지 않게 한다.
 // 경도가 높을수록 같은 동작에서 더 큰 ADC 값이 나오도록 모델링.
 function synthesizePressures(
   mode: SessionModeValue,
@@ -149,24 +151,40 @@ function synthesizePressures(
   hardness: HardnessValue
 ): [number, number, number, number, number] {
   const hardGain = 1 + hardness * 0.35; // 0:1.0, 1:1.35, 2:1.7
-  const period = mode === SessionMode.RHYTHM ? 0.8 : 1.5;
-  const phase = (t % period) / period; // 0~1
-  // 0~0.5: 쥐기(상승), 0.5~0.8: 유지, 0.8~1.0: 풀기
+  const basePeriod = mode === SessionMode.RHYTHM ? 0.8 : 1.5;
+
+  // 반복 인덱스 기준 의사난수 → 같은 반복 내에선 안정, 반복마다 다름
+  // (rep을 길이로 누적해서 계산해야 period가 흔들려도 인덱스가 맞아떨어짐)
+  const repIdx = Math.floor(t / basePeriod);
+  const repAmp = 0.65 + hash01(repIdx * 1.13) * 0.45;          // 0.65~1.10 (가끔 약하게/세게)
+  const repPeriod = basePeriod * (0.85 + hash01(repIdx * 2.7) * 0.3); // ±15% 타이밍 흔들림
+  const repHoldEnd = 0.55 + hash01(repIdx * 3.9) * 0.25;       // 유지 구간 길이 변화
+  const repStart = repIdx * basePeriod;
+  const phase = Math.min(1, (t - repStart) / repPeriod);
+
+  // 포락선: 상승(0~0.5) → 유지(0.5~repHoldEnd) → 풀기(~1.0)
   let envelope: number;
   if (phase < 0.5) envelope = phase / 0.5;
-  else if (phase < 0.8) envelope = 1;
-  else envelope = 1 - (phase - 0.8) / 0.2;
+  else if (phase < repHoldEnd) envelope = 1;
+  else envelope = Math.max(0, 1 - (phase - repHoldEnd) / Math.max(0.1, 1 - repHoldEnd));
 
-  const base = 200; // 무부하 노이즈 베이스
-  const peak = 2200 * hardGain;
+  const baseDrift = 200 + Math.sin(t * 0.13) * 35; // 천천히 출렁이는 베이스라인
+  const peak = 2200 * hardGain * repAmp;
 
   const finger = (offset: number, weight: number) => {
-    const noise = (Math.random() - 0.5) * 80;
+    // 손가락별 비중도 매 반복마다 살짝 흔들림 (특정 손가락만 약하게 잡는 등)
+    const weightJitter = 1 + (hash01(repIdx * 5.7 + offset) - 0.5) * 0.3; // ±15%
+    const noise = (Math.random() - 0.5) * 120;
     return Math.max(
       0,
       Math.min(
         4095,
-        Math.round(base + envelope * peak * weight + Math.sin(t * 6 + offset) * 30 + noise)
+        Math.round(
+          baseDrift
+          + envelope * peak * weight * weightJitter
+          + Math.sin(t * 6 + offset) * 30
+          + noise
+        )
       )
     );
   };
@@ -177,6 +195,12 @@ function synthesizePressures(
   }
   // GRIP, RHYTHM: 다섯 손가락 모두 활성, 검지/중지가 가장 강
   return [finger(0, 0.7), finger(1, 1.0), finger(2, 0.95), finger(3, 0.75), finger(4, 0.55)];
+}
+
+// 결정론적 의사난수: 같은 입력엔 같은 출력 (반복 내 안정, 반복 간 다양).
+function hash01(n: number): number {
+  const s = Math.sin(n * 12.9898 + 78.233) * 43758.5453;
+  return s - Math.floor(s);
 }
 
 function delay(ms: number) {
