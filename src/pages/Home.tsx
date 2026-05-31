@@ -77,9 +77,6 @@ export default function Home() {
         </div>
       </section>
 
-      <p className="text-xs text-slate-400 text-center">
-        현재 Mock 모드 (가짜 기기). 펌웨어 완성 후 실 BLE 모드 전환.
-      </p>
     </div>
   );
 }

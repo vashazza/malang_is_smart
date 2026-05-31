@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
@@ -21,6 +22,25 @@ export default function Result() {
   const { id } = useParams();
   const numId = Number(id);
   const session = useLiveQuery(() => db.sessions.get(numId), [numId]);
+
+  // 운동한 고유 날짜 수 (같은 날 여러 세션은 1일로 카운트)
+  const allStartedAt = useLiveQuery(
+    () => db.sessions.toArray().then((all) => all.map((s) => s.startedAt)),
+    [],
+  );
+  const dayCount = useMemo(() => {
+    if (!allStartedAt) return 0;
+    const days = new Set(allStartedAt.map((ts) => new Date(ts).toDateString()));
+    return days.size;
+  }, [allStartedAt]);
+
+  // 결과 페이지 진입 시 한 번만 띄움. 4초 후 자동 닫힘 + 탭하면 즉시 닫힘.
+  const [showCheer, setShowCheer] = useState(true);
+  useEffect(() => {
+    if (!showCheer) return;
+    const t = window.setTimeout(() => setShowCheer(false), 4000);
+    return () => window.clearTimeout(t);
+  }, [showCheer]);
 
   if (!session) return <div className="text-slate-500">불러오는 중…</div>;
 
@@ -49,6 +69,32 @@ export default function Result() {
 
   return (
     <div className="space-y-4">
+      {showCheer && dayCount > 0 && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6"
+          onClick={() => setShowCheer(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl px-8 py-7 text-center max-w-xs w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-6xl mb-3" aria-hidden>
+              👏
+            </div>
+            <div className="text-xl font-bold text-slate-900">
+              {dayCount}일째 운동했어요!
+            </div>
+            <div className="text-sm text-slate-500 mt-1">잘했어요</div>
+            <button
+              onClick={() => setShowCheer(false)}
+              className="mt-4 text-xs text-slate-400"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
+
       <section className="rounded-xl bg-indigo-50 p-4 text-center">
         <div className="text-sm text-indigo-700 mb-1">총점</div>
         <div className="text-5xl font-bold text-indigo-900">

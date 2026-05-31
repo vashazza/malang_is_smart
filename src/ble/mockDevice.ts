@@ -35,7 +35,7 @@ export class MockMallangiDevice implements MallangiTransport {
   async connect(): Promise<void> {
     this.setConn({ kind: "connecting" });
     await delay(400);
-    this.setConn({ kind: "connected", deviceName: "MALLANGI-MOCK" });
+    this.setConn({ kind: "connected", deviceName: "MALLANGI" });
     this.emitStatus();
   }
 
