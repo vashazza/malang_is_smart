@@ -153,20 +153,35 @@ function synthesizePressures(
   const hardGain = 1 + hardness * 0.35; // 0:1.0, 1:1.35, 2:1.7
   const basePeriod = mode === SessionMode.RHYTHM ? 0.8 : 1.5;
 
-  // 반복 인덱스 기준 의사난수 → 같은 반복 내에선 안정, 반복마다 다름
-  // (rep을 길이로 누적해서 계산해야 period가 흔들려도 인덱스가 맞아떨어짐)
-  const repIdx = Math.floor(t / basePeriod);
-  const repAmp = 0.65 + hash01(repIdx * 1.13) * 0.45;          // 0.65~1.10 (가끔 약하게/세게)
-  const repPeriod = basePeriod * (0.85 + hash01(repIdx * 2.7) * 0.3); // ±15% 타이밍 흔들림
-  const repHoldEnd = 0.55 + hash01(repIdx * 3.9) * 0.25;       // 유지 구간 길이 변화
-  const repStart = repIdx * basePeriod;
-  const phase = Math.min(1, (t - repStart) / repPeriod);
+  // 세션 시작 직후 ~1.5초는 "아직 안 누름" 상태로 노이즈만 흐른다.
+  // 실제 시연에서도 시작 버튼 누르고 잡기 시작하는 데까지 약간 텀이 있음.
+  const WARMUP_S = 1.5;
+  const inWarmup = t < WARMUP_S;
 
-  // 포락선: 상승(0~0.5) → 유지(0.5~repHoldEnd) → 풀기(~1.0)
+  // 반복 인덱스 기준 의사난수 → 같은 반복 내에선 안정, 반복마다 다름.
+  // 각 반복은 [repIdx*basePeriod, (repIdx+1)*basePeriod) "슬롯"에 들어가며,
+  // 슬롯 안에서 시작 지연·지속 시간·유지 길이가 모두 흔들려서
+  // 결과적으로 반복 간격이 일정해 보이지 않게 됨.
+  const repIdx = Math.floor(t / basePeriod);
+  const repAmp = 0.65 + hash01(repIdx * 1.13) * 0.45;          // 0.65~1.10 진폭
+  const repPeriod = basePeriod * (0.7 + hash01(repIdx * 2.7) * 0.4); // 0.7~1.1배 지속 시간
+  const repHoldEnd = 0.5 + hash01(repIdx * 3.9) * 0.3;          // 유지 구간 길이
+  const repStartDelay = hash01(repIdx * 4.3) * 0.45 * basePeriod; // 슬롯 안에서 시작 지연
+  const repStart = repIdx * basePeriod + repStartDelay;
+  const elapsedInRep = t - repStart;
+  const phase = elapsedInRep / repPeriod;
+
+  // 포락선: 워밍업 중이거나 슬롯의 idle 구간에선 0.
   let envelope: number;
-  if (phase < 0.5) envelope = phase / 0.5;
-  else if (phase < repHoldEnd) envelope = 1;
-  else envelope = Math.max(0, 1 - (phase - repHoldEnd) / Math.max(0.1, 1 - repHoldEnd));
+  if (inWarmup || elapsedInRep < 0 || phase >= 1) {
+    envelope = 0;
+  } else if (phase < 0.5) {
+    envelope = phase / 0.5;
+  } else if (phase < repHoldEnd) {
+    envelope = 1;
+  } else {
+    envelope = Math.max(0, 1 - (phase - repHoldEnd) / Math.max(0.1, 1 - repHoldEnd));
+  }
 
   const baseDrift = 200 + Math.sin(t * 0.13) * 35; // 천천히 출렁이는 베이스라인
   const peak = 2200 * hardGain * repAmp;
@@ -174,7 +189,7 @@ function synthesizePressures(
   const finger = (offset: number, weight: number) => {
     // 손가락별 비중도 매 반복마다 살짝 흔들림 (특정 손가락만 약하게 잡는 등)
     const weightJitter = 1 + (hash01(repIdx * 5.7 + offset) - 0.5) * 0.3; // ±15%
-    const noise = (Math.random() - 0.5) * 180;
+    const noise = (Math.random() - 0.5) * 260;
     return Math.max(
       0,
       Math.min(
