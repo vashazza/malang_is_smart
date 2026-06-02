@@ -239,13 +239,16 @@ function Cue({
   const { gripS, restS } = getPacing(mode);
   const t = elapsedMs / 1000;
 
+  // 채움색 = 흘러간 시간, 잔여색 = 남은 시간. 좌→우로 자연스럽게 채워짐.
   type Phase = {
     kind: "prep" | "grip" | "rest";
     label: string;
     emoji: string;
-    color: string; // tailwind bg-* color
-    remaining: number; // 초
-    total: number; // 초
+    textClass: string;
+    filledHex: string;
+    remainingHex: string;
+    remaining: number;
+    total: number;
   };
 
   let phase: Phase;
@@ -254,7 +257,9 @@ function Cue({
       kind: "prep",
       label: "준비",
       emoji: "⏳",
-      color: "bg-slate-200 text-slate-700",
+      textClass: "text-slate-700",
+      filledHex: "#cbd5e1", // slate-300
+      remainingHex: "#e2e8f0", // slate-200
       remaining: PREP_S - t,
       total: PREP_S,
     };
@@ -265,7 +270,9 @@ function Cue({
         kind: "grip",
         label: "쥐세요",
         emoji: "✊",
-        color: "bg-indigo-600 text-white",
+        textClass: "text-white",
+        filledHex: "#4338ca", // indigo-700
+        remainingHex: "#818cf8", // indigo-400
         remaining: gripS - inCycle,
         total: gripS,
       };
@@ -274,18 +281,26 @@ function Cue({
         kind: "rest",
         label: "펴세요",
         emoji: "🖐️",
-        color: "bg-emerald-500 text-white",
+        textClass: "text-white",
+        filledHex: "#059669", // emerald-600
+        remainingHex: "#6ee7b7", // emerald-300
         remaining: gripS + restS - inCycle,
         total: restS,
       };
     }
   }
 
-  const progress = 1 - phase.remaining / phase.total;
+  const progressPct = Math.min(
+    100,
+    Math.max(0, (1 - phase.remaining / phase.total) * 100),
+  );
 
   return (
     <div
-      className={`rounded-xl p-4 text-center transition-colors duration-200 ${phase.color}`}
+      className={`rounded-xl p-4 text-center ${phase.textClass}`}
+      style={{
+        background: `linear-gradient(to right, ${phase.filledHex} 0%, ${phase.filledHex} ${progressPct}%, ${phase.remainingHex} ${progressPct}%, ${phase.remainingHex} 100%)`,
+      }}
     >
       <div className="text-4xl mb-1" aria-hidden>
         {phase.emoji}
@@ -293,12 +308,6 @@ function Cue({
       <div className="text-2xl font-bold tracking-wide">{phase.label}</div>
       <div className="text-sm opacity-80 mt-0.5">
         {Math.ceil(phase.remaining).toString()}초
-      </div>
-      <div className="mt-3 h-1.5 w-full bg-black/15 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-white/80 transition-all duration-100"
-          style={{ width: `${Math.min(100, Math.max(0, progress * 100))}%` }}
-        />
       </div>
     </div>
   );
