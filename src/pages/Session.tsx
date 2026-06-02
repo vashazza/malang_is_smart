@@ -156,6 +156,8 @@ export default function Session() {
 
   return (
     <div className="space-y-4">
+      {running && <Cue elapsedMs={elapsedMs} mode={mode} />}
+
       <div className="grid grid-cols-2 gap-3">
         <Stat label="반복 횟수" value={`${reps}회`} />
         <Stat label="경과 시간" value={formatTime(elapsedMs)} />
@@ -218,6 +220,91 @@ export default function Session() {
       <p className="text-xs text-slate-400 text-center">
         모드: {modeLabel(mode)} · {running ? "측정 중" : "대기"}
       </p>
+    </div>
+  );
+}
+
+// 세션 중 "쥐세요 / 펴세요" 페이서. 사용자가 따라하면 자연스럽게 점수 target에 맞춰짐.
+//   준비 3초 카운트다운 → (쥐기 → 풀기) 반복.
+//   모드별 쥐기·풀기 길이는 score.ts 의 targetHoldMs(3000) 와 일관되게.
+function Cue({
+  elapsedMs,
+  mode,
+}: {
+  elapsedMs: number;
+  mode: SessionModeValue;
+}) {
+  const PREP_S = 3;
+  const { gripS, restS } =
+    mode === SessionMode.RHYTHM
+      ? { gripS: 0.5, restS: 0.5 }
+      : mode === SessionMode.PINCH
+      ? { gripS: 2.0, restS: 1.5 }
+      : { gripS: 3.0, restS: 2.0 }; // GRIP
+
+  const t = elapsedMs / 1000;
+
+  type Phase = {
+    kind: "prep" | "grip" | "rest";
+    label: string;
+    emoji: string;
+    color: string; // tailwind bg-* color
+    remaining: number; // 초
+    total: number; // 초
+  };
+
+  let phase: Phase;
+  if (t < PREP_S) {
+    phase = {
+      kind: "prep",
+      label: "준비",
+      emoji: "⏳",
+      color: "bg-slate-200 text-slate-700",
+      remaining: PREP_S - t,
+      total: PREP_S,
+    };
+  } else {
+    const inCycle = (t - PREP_S) % (gripS + restS);
+    if (inCycle < gripS) {
+      phase = {
+        kind: "grip",
+        label: "쥐세요",
+        emoji: "✊",
+        color: "bg-indigo-600 text-white",
+        remaining: gripS - inCycle,
+        total: gripS,
+      };
+    } else {
+      phase = {
+        kind: "rest",
+        label: "펴세요",
+        emoji: "🖐️",
+        color: "bg-emerald-500 text-white",
+        remaining: gripS + restS - inCycle,
+        total: restS,
+      };
+    }
+  }
+
+  const progress = 1 - phase.remaining / phase.total;
+
+  return (
+    <div
+      className={`rounded-xl p-4 text-center transition-colors duration-200 ${phase.color}`}
+    >
+      <div className="text-4xl mb-1" aria-hidden>
+        {phase.emoji}
+      </div>
+      <div className="text-2xl font-bold tracking-wide">{phase.label}</div>
+      <div className="text-sm opacity-80 mt-0.5">
+        {Math.ceil(phase.remaining).toString()}초
+      </div>
+      <div className="mt-3 h-1.5 w-full bg-black/15 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-white/80 transition-all duration-100"
+          style={{ width: `${Math.min(100, Math.max(0, progress * 100))}%` }}
+        />
+      </div>
     </div>
   );
 }
