@@ -1,13 +1,22 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getTransport } from "../ble";
+import { getTransport, Hardness, type HardnessValue } from "../ble";
 import type { ConnectionState } from "../ble/types";
+import { getStoredHardness, setStoredHardness } from "../db/prefs";
 
 export default function Home() {
   const [conn, setConn] = useState<ConnectionState>({ kind: "disconnected" });
+  const [hardness, setHardness] = useState<HardnessValue>(() => getStoredHardness());
   const transport = getTransport();
 
   useEffect(() => transport.onConnectionChange(setConn), [transport]);
+
+  // 연결되면 저장된 경도를 기기에 한 번 동기화 (Home 진입 시점에 이미 연결된 경우)
+  useEffect(() => {
+    if (conn.kind === "connected") {
+      transport.setHardness(hardness).catch(console.error);
+    }
+  }, [conn.kind, hardness, transport]);
 
   const handleConnect = async () => {
     try {
@@ -18,6 +27,12 @@ export default function Home() {
   };
 
   const handleDisconnect = () => transport.disconnect();
+
+  const handlePickHardness = (h: HardnessValue) => {
+    setHardness(h);
+    setStoredHardness(h);
+    transport.setHardness(h).catch(console.error);
+  };
 
   return (
     <div className="space-y-6">
@@ -43,6 +58,30 @@ export default function Home() {
               {conn.kind === "connecting" ? "연결 중…" : "기기 연결"}
             </button>
           )}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="text-sm font-semibold text-slate-700 mb-2">경도</h2>
+        <div className="grid grid-cols-3 gap-2">
+          <HardnessButton
+            label="쉬움"
+            hint="가볍게"
+            selected={hardness === Hardness.EASY}
+            onClick={() => handlePickHardness(Hardness.EASY)}
+          />
+          <HardnessButton
+            label="보통"
+            hint="기본"
+            selected={hardness === Hardness.NORMAL}
+            onClick={() => handlePickHardness(Hardness.NORMAL)}
+          />
+          <HardnessButton
+            label="어려움"
+            hint="단단하게"
+            selected={hardness === Hardness.HARD}
+            onClick={() => handlePickHardness(Hardness.HARD)}
+          />
         </div>
       </section>
 
@@ -78,6 +117,39 @@ export default function Home() {
       </section>
 
     </div>
+  );
+}
+
+function HardnessButton({
+  label,
+  hint,
+  selected,
+  onClick,
+}: {
+  label: string;
+  hint: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={selected}
+      className={`py-3 rounded-lg border text-center transition-colors ${
+        selected
+          ? "bg-indigo-600 border-indigo-600 text-white"
+          : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+      }`}
+    >
+      <div className="font-medium">{label}</div>
+      <div
+        className={`text-xs mt-0.5 ${
+          selected ? "text-indigo-100" : "text-slate-400"
+        }`}
+      >
+        {hint}
+      </div>
+    </button>
   );
 }
 

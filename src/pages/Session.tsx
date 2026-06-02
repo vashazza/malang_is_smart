@@ -7,7 +7,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { getTransport, Hardness, SessionMode } from "../ble";
+import { getTransport, SessionMode } from "../ble";
 import type { SensorSample } from "../ble/types";
 import type { SessionModeValue } from "../ble/uuids";
 import { RepDetector, type RepCycle } from "../signal/repCount";
@@ -15,6 +15,7 @@ import { scoreSession, suggestNextHardness } from "../signal/score";
 import { analyzePerFinger, classifyPattern } from "../signal/perFinger";
 import { FINGERS, type FingerArray } from "../signal/fingers";
 import { getPacing, PREP_S } from "../signal/pacing";
+import { getStoredHardness } from "../db/prefs";
 import { db, downsample } from "../db";
 
 const MODE_FROM_QUERY: Record<string, SessionModeValue> = {
@@ -133,7 +134,7 @@ export default function Session() {
       downsample(samples.map((s) => s.pressures[4]), 300),
     ];
     const startedAt = Date.now() - elapsedMs;
-    const currentHardness = Hardness.NORMAL;
+    const currentHardness = getStoredHardness();
     const nextHardness = suggestNextHardness(currentHardness, score);
 
     const id = await db.sessions.add({
