@@ -5,6 +5,7 @@ import {
   type HardnessValue,
   type SessionModeValue,
 } from "./uuids";
+import { getPacing, PREP_S } from "../signal/pacing";
 import type {
   ConnectionState,
   DeviceStatus,
@@ -141,9 +142,10 @@ export class MockMallangiDevice implements MallangiTransport {
   }
 }
 
-// 사용자가 ~1.5초 주기로 쥐었다 폈다 하는 듯한 파형 (잡음 포함).
-// 사람 손은 매번 정확히 같지 않으므로 매 반복마다 세기·타이밍·손가락 비중을
-// 자연스럽게 흔들어 데모가 "기계적"으로 보이지 않게 한다.
+// 사용자가 쥐었다 폈다 하는 듯한 파형 (잡음 포함).
+// 타이밍 자체는 signal/pacing.ts 의 페이서(=화면의 "쥐세요/펴세요" 가이드)와
+// 동일하게 맞춰서 둘이 따로 놀지 않도록 한다. 사람 손이 매번 정확히 같지 않으므로
+// 진폭·노이즈·손가락 비중만 매 반복마다 살짝씩 흔들어 자연스럽게 보이게 함.
 // 경도가 높을수록 같은 동작에서 더 큰 ADC 값이 나오도록 모델링.
 function synthesizePressures(
   mode: SessionModeValue,
@@ -151,36 +153,30 @@ function synthesizePressures(
   hardness: HardnessValue
 ): [number, number, number, number, number] {
   const hardGain = 1 + hardness * 0.35; // 0:1.0, 1:1.35, 2:1.7
-  const basePeriod = mode === SessionMode.RHYTHM ? 0.8 : 1.5;
+  const { gripS, restS } = getPacing(mode);
+  const cycleS = gripS + restS;
 
-  // 세션 시작 직후 ~1.5초는 "아직 안 누름" 상태로 노이즈만 흐른다.
-  // 실제 시연에서도 시작 버튼 누르고 잡기 시작하는 데까지 약간 텀이 있음.
-  const WARMUP_S = 1.5;
-  const inWarmup = t < WARMUP_S;
+  // "준비" 카운트다운 동안은 사용자가 아직 누르지 않은 상태 → 노이즈만.
+  const inPrep = t < PREP_S;
+  const repIdx = inPrep ? 0 : Math.floor((t - PREP_S) / cycleS);
+  // 사이클 내 위치 (0 ~ cycleS)
+  const rt = inPrep ? 0 : (t - PREP_S) - repIdx * cycleS;
 
-  // 반복 인덱스 기준 의사난수 → 같은 반복 내에선 안정, 반복마다 다름.
-  // 각 반복은 [repIdx*basePeriod, (repIdx+1)*basePeriod) "슬롯"에 들어가며,
-  // 슬롯 안에서 시작 지연·지속 시간·유지 길이가 모두 흔들려서
-  // 결과적으로 반복 간격이 일정해 보이지 않게 됨.
-  const repIdx = Math.floor(t / basePeriod);
-  const repAmp = 0.65 + hash01(repIdx * 1.13) * 0.45;          // 0.65~1.10 진폭
-  const repPeriod = basePeriod * (0.7 + hash01(repIdx * 2.7) * 0.4); // 0.7~1.1배 지속 시간
-  const repHoldEnd = 0.5 + hash01(repIdx * 3.9) * 0.3;          // 유지 구간 길이
-  const repStartDelay = hash01(repIdx * 4.3) * 0.45 * basePeriod; // 슬롯 안에서 시작 지연
-  const repStart = repIdx * basePeriod + repStartDelay;
-  const elapsedInRep = t - repStart;
-  const phase = elapsedInRep / repPeriod;
+  // 진폭만 살짝 흔들림 (타이밍은 페이서에 고정). 0.85~1.15.
+  const repAmp = 0.85 + hash01(repIdx * 1.13) * 0.3;
 
-  // 포락선: 워밍업 중이거나 슬롯의 idle 구간에선 0.
+  // 포락선: rapid rise → plateau → rapid fall.
+  // rise/fall 짧게 잡아서 grip 구간 대부분 위 임계치(1200) 위에 머물도록 → holdScore 만점 근접.
   let envelope: number;
-  if (inWarmup || elapsedInRep < 0 || phase >= 1) {
+  if (inPrep) {
     envelope = 0;
-  } else if (phase < 0.5) {
-    envelope = phase / 0.5;
-  } else if (phase < repHoldEnd) {
-    envelope = 1;
   } else {
-    envelope = Math.max(0, 1 - (phase - repHoldEnd) / Math.max(0.1, 1 - repHoldEnd));
+    const riseS = gripS * 0.1;
+    const fallS = restS * 0.2;
+    if (rt < riseS) envelope = rt / riseS;
+    else if (rt < gripS) envelope = 1;
+    else if (rt < gripS + fallS) envelope = 1 - (rt - gripS) / fallS;
+    else envelope = 0;
   }
 
   const baseDrift = 200 + Math.sin(t * 0.13) * 35; // 천천히 출렁이는 베이스라인

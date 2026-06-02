@@ -14,6 +14,7 @@ import { RepDetector, type RepCycle } from "../signal/repCount";
 import { scoreSession, suggestNextHardness } from "../signal/score";
 import { analyzePerFinger, classifyPattern } from "../signal/perFinger";
 import { FINGERS, type FingerArray } from "../signal/fingers";
+import { getPacing, PREP_S } from "../signal/pacing";
 import { db, downsample } from "../db";
 
 const MODE_FROM_QUERY: Record<string, SessionModeValue> = {
@@ -225,8 +226,8 @@ export default function Session() {
 }
 
 // 세션 중 "쥐세요 / 펴세요" 페이서. 사용자가 따라하면 자연스럽게 점수 target에 맞춰짐.
-//   준비 3초 카운트다운 → (쥐기 → 풀기) 반복.
-//   모드별 쥐기·풀기 길이는 score.ts 의 targetHoldMs(3000) 와 일관되게.
+//   준비 PREP_S초 카운트다운 → (쥐기 → 풀기) 반복.
+//   모드별 쥐기·풀기 길이는 signal/pacing.ts 에서 단일 정의 (mock 합성기도 동일 사용).
 function Cue({
   elapsedMs,
   mode,
@@ -234,14 +235,7 @@ function Cue({
   elapsedMs: number;
   mode: SessionModeValue;
 }) {
-  const PREP_S = 3;
-  const { gripS, restS } =
-    mode === SessionMode.RHYTHM
-      ? { gripS: 0.5, restS: 0.5 }
-      : mode === SessionMode.PINCH
-      ? { gripS: 2.0, restS: 1.5 }
-      : { gripS: 3.0, restS: 2.0 }; // GRIP
-
+  const { gripS, restS } = getPacing(mode);
   const t = elapsedMs / 1000;
 
   type Phase = {
