@@ -143,10 +143,9 @@ export class MockMallangiDevice implements MallangiTransport {
 }
 
 // 사용자가 쥐었다 폈다 하는 듯한 파형 (잡음 포함).
-// 타이밍 자체는 signal/pacing.ts 의 페이서(=화면의 "쥐세요/펴세요" 가이드)와
-// 동일하게 맞춰서 둘이 따로 놀지 않도록 한다. 사람 손이 매번 정확히 같지 않으므로
-// 진폭·노이즈·손가락 비중만 매 반복마다 살짝씩 흔들어 자연스럽게 보이게 함.
-// 경도가 높을수록 같은 동작에서 더 큰 ADC 값이 나오도록 모델링.
+// 큰 박자는 signal/pacing.ts 의 페이서(=화면의 "쥐세요/펴세요" 가이드)에 맞추되,
+// 매 반복마다 시작 시점·유지 시간·세기를 자연스럽게 흔들어서 점수가 만점에 박히지 않도록 한다.
+// (목표: GRIP 데모에서 60~70 점대.)
 function synthesizePressures(
   mode: SessionModeValue,
   t: number,
@@ -157,34 +156,61 @@ function synthesizePressures(
   const cycleS = gripS + restS;
 
   // "준비" 카운트다운 동안은 사용자가 아직 누르지 않은 상태 → 노이즈만.
-  const inPrep = t < PREP_S;
-  const repIdx = inPrep ? 0 : Math.floor((t - PREP_S) / cycleS);
-  // 사이클 내 위치 (0 ~ cycleS)
-  const rt = inPrep ? 0 : (t - PREP_S) - repIdx * cycleS;
-
-  // 진폭만 살짝 흔들림 (타이밍은 페이서에 고정). 0.85~1.15.
-  const repAmp = 0.85 + hash01(repIdx * 1.13) * 0.3;
-
-  // 포락선: rapid rise → plateau → rapid fall.
-  // rise/fall 짧게 잡아서 grip 구간 대부분 위 임계치(1200) 위에 머물도록 → holdScore 만점 근접.
-  let envelope: number;
-  if (inPrep) {
-    envelope = 0;
-  } else {
-    const riseS = gripS * 0.1;
-    const fallS = restS * 0.2;
-    if (rt < riseS) envelope = rt / riseS;
-    else if (rt < gripS) envelope = 1;
-    else if (rt < gripS + fallS) envelope = 1 - (rt - gripS) / fallS;
-    else envelope = 0;
+  if (t < PREP_S) {
+    return composeFingers(mode, t, 0, /*peak*/ 0, /*activeIdx*/ 0);
   }
 
-  const baseDrift = 200 + Math.sin(t * 0.13) * 35; // 천천히 출렁이는 베이스라인
+  // 현재 t 시점에서 진행 중일 수 있는 후보 rep 들 (시작 jitter 때문에 슬롯 경계에서 겹칠 수 있음)
+  const slotIdx = Math.floor((t - PREP_S) / cycleS);
+  let envelope = 0;
+  let activeIdx = slotIdx;
+  for (const idx of [slotIdx - 1, slotIdx, slotIdx + 1]) {
+    if (idx < 0) continue;
+    const e = repEnvelopeAt(idx, t, cycleS, gripS);
+    if (e > envelope) {
+      envelope = e;
+      activeIdx = idx;
+    }
+  }
+
+  // 현재 활성 rep 의 진폭 (0.7~1.3 → 강도 일관성을 일부러 떨어뜨림)
+  const repAmp = 0.7 + hash01(activeIdx * 1.13) * 0.6;
   const peak = 2200 * hardGain * repAmp;
+  return composeFingers(mode, t, envelope, peak, activeIdx);
+}
+
+// 사이클 idx 의 rep 이 시점 t 에서 만들어내는 envelope 값 (0~1).
+// 시작 시점과 hold 길이가 idx 기반 의사난수로 흔들림.
+function repEnvelopeAt(idx: number, t: number, cycleS: number, gripS: number): number {
+  const slotStart = PREP_S + idx * cycleS;
+  // 슬롯 안에서 시작 시점 ±20% 흔들림 → 사람의 박자 불규칙성 흉내
+  const startJitter = (hash01(idx * 7.1) - 0.5) * 0.4 * cycleS;
+  const repStart = slotStart + startJitter;
+  // hold 길이 0.45~0.85 × gripS (사용자가 매번 3초 풀로 못 잡음)
+  const repHold = gripS * (0.45 + hash01(idx * 5.1) * 0.4);
+  const rise = gripS * 0.1;
+  const fall = gripS * 0.1;
+  const rt = t - repStart;
+  if (rt < 0) return 0;
+  if (rt < rise) return rt / rise;
+  if (rt < rise + repHold) return 1;
+  if (rt < rise + repHold + fall) return 1 - (rt - rise - repHold) / fall;
+  return 0;
+}
+
+// envelope · peak · 손가락 비중 · 노이즈 합성. synthesizePressures 의 끝부분을 분리.
+function composeFingers(
+  mode: SessionModeValue,
+  t: number,
+  envelope: number,
+  peak: number,
+  activeIdx: number,
+): [number, number, number, number, number] {
+  const baseDrift = 200 + Math.sin(t * 0.13) * 35; // 천천히 출렁이는 베이스라인
 
   const finger = (offset: number, weight: number) => {
     // 손가락별 비중도 매 반복마다 살짝 흔들림 (특정 손가락만 약하게 잡는 등)
-    const weightJitter = 1 + (hash01(repIdx * 5.7 + offset) - 0.5) * 0.3; // ±15%
+    const weightJitter = 1 + (hash01(activeIdx * 5.7 + offset) - 0.5) * 0.3; // ±15%
     const noise = (Math.random() - 0.5) * 260;
     return Math.max(
       0,
