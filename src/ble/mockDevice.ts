@@ -204,14 +204,20 @@ function repEnvelopeAt(idx: number, t: number, cycleS: number, gripS: number): n
   const repStart = slotStart + startJitter;
   // hold 길이 0.45~0.85 × gripS (사용자가 매번 3초 풀로 못 잡음)
   const repHold = gripS * (0.45 + hash01(idx * 5.1) * 0.4);
-  const rise = gripS * 0.1;
-  const fall = gripS * 0.1;
+  // rise/fall 을 smoothstep S-커브로 → 시작/끝 모서리 둥글게.
+  const rise = gripS * 0.15;
+  const fall = gripS * 0.15;
   const rt = t - repStart;
   if (rt < 0) return 0;
-  if (rt < rise) return rt / rise;
+  if (rt < rise) return smoothstep(rt / rise);
   if (rt < rise + repHold) return 1;
-  if (rt < rise + repHold + fall) return 1 - (rt - rise - repHold) / fall;
+  if (rt < rise + repHold + fall) return 1 - smoothstep((rt - rise - repHold) / fall);
   return 0;
+}
+
+// 3x² − 2x³. f(0)=0, f(1)=1, 양 끝의 도함수가 0 이라 모서리가 부드럽게 이어짐.
+function smoothstep(x: number): number {
+  return x * x * (3 - 2 * x);
 }
 
 // envelope · peak · 손가락 비중 · 노이즈 합성. synthesizePressures 의 끝부분을 분리.
