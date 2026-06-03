@@ -196,8 +196,11 @@ function gripTremor(t: number): number {
 // 시작 시점과 hold 길이가 idx 기반 의사난수로 흔들림.
 function repEnvelopeAt(idx: number, t: number, cycleS: number, gripS: number): number {
   const slotStart = PREP_S + idx * cycleS;
-  // 슬롯 안에서 시작 시점 ±20% 흔들림 → 사람의 박자 불규칙성 흉내
-  const startJitter = (hash01(idx * 7.1) - 0.5) * 0.4 * cycleS;
+  // 슬롯 안에서 시작 시점 ±20% 흔들림 → 사람의 박자 불규칙성 흉내.
+  // 단, 첫 rep(idx=0)이 음수 jitter 로 PREP 경계(t=PREP_S) 안쪽으로 들어가면
+  // PREP 동안 envelope이 강제로 0 으로 막혀 t=PREP_S 순간 rise 중간값부터 튀어오름 →
+  // 첫 rep 만 jitter 없이 정확히 cue "쥐세요" 시점에 맞춤. 사용자가 첫 박자엔 집중하니 자연스러움.
+  const startJitter = idx === 0 ? 0 : (hash01(idx * 7.1) - 0.5) * 0.4 * cycleS;
   const repStart = slotStart + startJitter;
   // hold 길이 0.45~0.85 × gripS (사용자가 매번 3초 풀로 못 잡음)
   const repHold = gripS * (0.45 + hash01(idx * 5.1) * 0.4);
