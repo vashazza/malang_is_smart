@@ -175,8 +175,21 @@ function synthesizePressures(
 
   // 현재 활성 rep 의 진폭 (0.7~1.3 → 강도 일관성을 일부러 떨어뜨림)
   const repAmp = 0.7 + hash01(activeIdx * 1.13) * 0.6;
-  const peak = 2200 * hardGain * repAmp;
+  // 사람이 잡고 있는 동안 손에 힘이 일정하지 않음 → peak 자체를 시간으로 출렁이게.
+  const peak = 2200 * hardGain * repAmp * gripTremor(t);
   return composeFingers(mode, t, envelope, peak, activeIdx);
+}
+
+// 잡는 강도의 자연스러운 떨림.
+// 느린 출렁임 (잡는 힘이 일정하지 못함) + 중간 떨림 + 빠른 미세 떨림 + 비대칭 스파이크.
+// 결과 범위 대략 0.75~1.30. envelope=1 인 플라토 구간이 평탄하지 않고 위아래로 흔들려 보인다.
+function gripTremor(t: number): number {
+  const slow = Math.sin(t * 3.7) * 0.14;            // ±14% 느린 출렁임
+  const mid = Math.sin(t * 7.3 + 1.0) * 0.09;       // ±9% 중간
+  const fast = Math.sin(t * 13.1 + 2.5) * 0.05;     // ±5% 미세 떨림
+  // 가끔 더 세게 쥐는 순간(positive spike). |sin|^4 → 평소엔 0 근처, 짧게 양의 봉우리.
+  const surge = Math.pow(Math.max(0, Math.sin(t * 4.2 + 0.7)), 4) * 0.18;
+  return 1 + slow + mid + fast + surge;
 }
 
 // 사이클 idx 의 rep 이 시점 t 에서 만들어내는 envelope 값 (0~1).
