@@ -2,9 +2,9 @@
 //  스마트 말랑이 — 실제 센서 펌웨어 (v0.2-incremental)
 //  Adafruit ESP32-S3 Feather (5885) 기준
 //
-//  진행 상황 (하드웨어 붙이는 순서대로 더미를 진짜로 교체):
-//    [x] BLE 광고 + notify  (mallangi_ble_test 와 동일)
-//    [x] Velostat ch0~4 = A0~A4  ← 5채널 전부 결선됨
+//  진행 상황:
+//    [x] BLE 광고 + notify
+//    [x] Velostat ch0~4 = A0~A4 (5채널 결선 완료)
 //    [ ] MPU-6050 (I2C, 0x68)
 //    [ ] ABP2 압력 (I2C)
 //    [ ] 펌프/밸브 PWM (GPIO 13, 12) + MOSFET

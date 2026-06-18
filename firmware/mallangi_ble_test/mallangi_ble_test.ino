@@ -3,12 +3,9 @@
 //  Adafruit ESP32-S3 Feather (5885) 기준
 //
 //  목적: 센서/펌프 다 빼고, "MALLANGI" 이름으로 BLE 광고 +
-//        50Hz 더미 데이터 notify 만 검증한다.
+//        50Hz 합성 파형 notify 로 앱(Chrome/Edge)이 정상 연결되는지만 검증.
 //
-//  앱(smart-mallangi)이 .env.local 의 VITE_USE_MOCK_BLE=false
-//  설정 + Chrome/Edge 에서 정상 연결되는지 확인하는 용도.
-//
-//  센서 결선이 끝나면 별도 .ino (mallangi_full.ino) 로 교체.
+//  센서 결선이 끝나면 mallangi_full.ino 로 교체해서 실제 ADC 값을 송신.
 // ============================================================
 #include <Arduino.h>
 #include <math.h>

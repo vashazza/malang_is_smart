@@ -16,8 +16,7 @@ import {
   type SensorSample,
 } from "./types";
 
-// 실제 ESP32와 통신할 Web Bluetooth 어댑터.
-// 하드웨어 펌웨어 완성 후 enable. 그 전엔 MockMallangiDevice를 씀.
+// ESP32(MALLANGI) 와 통신하는 Web Bluetooth 어댑터.
 //
 // 동작 검증 체크리스트:
 //   - chrome://flags 에서 "Experimental Web Platform features" ON 권장

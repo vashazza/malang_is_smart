@@ -1,7 +1,7 @@
 import { Hardness, type HardnessValue } from "../ble/uuids";
 
 // 사용자가 홈에서 고른 경도. 페이지 이동·새로고침에 살아남도록 localStorage 에 저장.
-// 기기(ESP32 또는 mock)에는 transport.setHardness() 로 따로 동기화.
+// 기기에는 transport.setHardness() 로 따로 동기화.
 
 const KEY = "mallangi.hardness";
 

@@ -22,7 +22,6 @@ export type ConnectionState =
   | { kind: "error"; message: string };
 
 // 앱이 BLE 레이어와 대화할 때 쓰는 인터페이스.
-// 이 인터페이스만 만족하면 Mock이든 Real Web Bluetooth든 같이 동작.
 export interface MallangiTransport {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
